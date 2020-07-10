@@ -1,4 +1,5 @@
 import os
+import random
 
 import discord
 from discord.ext import commands
@@ -53,6 +54,7 @@ class DiplomacyCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.game = None
+        self.server = None
 
     async def on_ready(self):
         guild = discord.utils.get(client.guilds, name=GUILD)
@@ -64,6 +66,8 @@ class DiplomacyCog(commands.Cog):
 
     @commands.command()
     async def new(self, ctx):
+        self.server = ctx.channel.guild
+
         # must be in #diplomacy-general
         if ctx.channel.name != GAME_CHANNEL:
             await ctx.send('Wrong channel')
@@ -88,9 +92,48 @@ class DiplomacyCog(commands.Cog):
             await ctx.send(f'User {ctx.message.author.name} is already in this game!')
         elif len(self.game.players) >= 7:
             await ctx.send(f'Sorry, only 7 players may join game')
+        elif self.game.started():
+            await ctx.send(f'Sorry, game has already started')
         else:
             self.game.add_player(ctx.message.author)
             await ctx.send(f'Added user {ctx.message.author.name} to game')
+
+    @commands.command(aliases=['forcestart'])
+    async def start(self, ctx):
+        if ctx.channel.name != GAME_CHANNEL:
+            await ctx.send('Wrong channel')
+            return
+
+        if not self.game:
+            await ctx.send('First create a game with !new')
+            return
+        elif self.game.started():
+            await ctx.send('Game already in progress')
+            return
+        elif len(self.game.players) != 7 and ctx.message.content != '!forcestart':
+            await ctx.send('Not 7 players yet; to start anyway, use !forcestart')
+            return
+        else:
+            self.game.start()
+            await self.assign_game_roles()
+            await ctx.send('New game has started!')
+            summary = self.game.summary()
+            await ctx.send(summary)
+
+    async def assign_game_roles(self):
+        # strip each player of all country roles
+        for p in self.game.players:
+            if p:
+                for nation_role_name in NATION_ROLES.values():
+                    nation_role = discord.utils.get(self.server.roles, name=nation_role_name)
+                    await p.remove_roles(nation_role)
+
+        # assign each player their respective role
+        for (n,p) in self.game.nations.items():
+            if p:
+                nation_role_name = NATION_ROLES[n]
+                nation_role = discord.utils.get(self.server.roles, name=nation_role_name)
+                await p.add_roles(nation_role)
 
     @commands.command()
     async def create_channels_and_roles(self, ctx):
@@ -147,16 +190,46 @@ class DiplomacyCog(commands.Cog):
                 await channel.delete()
 
 
+SEASONS = ['Spring', 'Fall', 'Winter']
+
 class DiplomacyGame:
     def __init__(self):
         self.players = []
         self.state = 'not started'
+        self.nations = {}
+
+        self.season = 'Spring'
+        self.year = 1901
+
+    def started(self):
+        return self.state != 'not started'
 
     def add_player(self, user):
         self.players.append(user)
 
     def start(self):
         self.state = 'started'
+
+        # game may have started with fewer than 7 players
+        while len(self.players) < 7:
+            self.players.append(None)
+
+        # randomly assign nations
+        nations = NATIONS[:]
+        random.shuffle(nations)
+        for (p,n) in zip(self.players, nations):
+            self.nations[n] = p
+
+    def summary(self):
+        s = ""
+        for n in NATIONS:
+            p = self.nations[n]
+            if p:
+                s += f'**{n}**: @{p.name}\n'
+            else:
+                s += f'**{n}**: None\n'
+        s += f'{self.season} {self.year}'
+        return s
 
 bot = commands.Bot(command_prefix=commands.when_mentioned_or('!'))
 

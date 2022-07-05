@@ -19,6 +19,6 @@ six==1.15.0
 tornado==6.0.4
 tqdm==4.47.0
 typing-extensions==3.7.4.2
-ujson==5.2.0
+ujson==5.4.0
 websockets==9.1
 yarl==1.4.2

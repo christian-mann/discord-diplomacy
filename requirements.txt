@@ -16,7 +16,7 @@ python-dateutil==2.8.1
 python-dotenv==0.14.0
 pytz==2020.1
 six==1.15.0
-tornado==6.0.4
+tornado==6.3.2
 tqdm==4.47.0
 typing-extensions==3.7.4.2
 ujson==5.4.0
